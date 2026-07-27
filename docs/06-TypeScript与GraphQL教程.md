@@ -534,6 +534,29 @@ query GetProducts($first: Int!, $after: String) {
 
 **Shopify 的商品/订单数据一直在变**，页码分页会导致"翻到第 2 页时，有商品因为第 1 页删了一个而被跳过"。所以必须用游标。
 
+翻页时游标是这样传的——**上一页的 `endCursor`，就是下一页的 `after`**：
+
+```mermaid
+%%{init:{'theme':'base','themeVariables':{
+  'actorBkg':'#332F45','actorTextColor':'#F2EFE6','actorBorder':'#7A6FA6',
+  'noteBkgColor':'#E8DFCE','noteTextColor':'#26211A','noteBorderColor':'#A3937A',
+  'signalColor':'#8A8578','signalTextColor':'#8A8578'
+}}}%%
+sequenceDiagram
+    autonumber
+    participant C as 你的 loader
+    participant S as Shopify GraphQL
+
+    C->>S: products(first: 20) —— 第一页不传 after
+    S-->>C: edges[20 条] + pageInfo<br/>hasNextPage: true, endCursor: "eyJ…A"
+    Note over C: products = edges.map(e => e.node)<br/>nextCursor = pageInfo.endCursor
+    C->>S: products(first: 20, after: "eyJ…A")
+    S-->>C: 接着上一条往后的 20 条<br/>新的 endCursor: "eyJ…B"
+    Note over C,S: 这中间别人删了一个商品也没事<br/>游标记的是「位置」不是「第几条」，不会跳过或重复
+    C->>S: products(first: 20, after: "eyJ…B")
+    S-->>C: hasNextPage: false —— 到底了
+```
+
 ### JS 里的处理
 
 ```ts

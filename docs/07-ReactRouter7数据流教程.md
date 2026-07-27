@@ -49,6 +49,39 @@ export default function Products() {
 }
 ```
 
+```mermaid
+flowchart TB
+    F["app/routes/products.tsx —— 一个文件"]
+    F --> SRV
+    F --> BOTH
+
+    subgraph SRV["只在服务端跑 · 代码不会被打包进浏览器"]
+        direction TB
+        LO["export const loader<br/>authenticate.admin(request)<br/>admin.graphql(...)"]
+        AC["export const action"]
+    end
+
+    subgraph BOTH["两端都跑 · 服务端渲染 + 浏览器 hydrate"]
+        CO["export default function Products()<br/>useLoaderData()"]
+    end
+
+    SRV --- OK["可以用 API secret、连数据库、读文件<br/>这就是 authenticate.admin() 只能待在这里的原因"]
+    BOTH --- LIM["不能用 process.env.SECRET<br/>不能 import 只能在 Node 跑的包"]
+
+    class F platform
+    class LO,AC app
+    class CO hydro
+    class OK sand
+    class LIM warn
+    classDef platform fill:#332F45,stroke:#7A6FA6,stroke-width:1.5px,color:#F2EFE6
+    classDef app fill:#0F5F4E,stroke:#3FA98D,stroke-width:1.5px,color:#F2EFE6
+    classDef hydro fill:#1B4D8F,stroke:#5C93D6,stroke-width:1.5px,color:#F2EFE6
+    classDef warn fill:#A4341F,stroke:#E07A5F,stroke-width:1.5px,color:#F2EFE6
+    classDef sand fill:#E8DFCE,stroke:#A3937A,stroke-width:1.5px,color:#26211A
+    style SRV fill:none,stroke:#8A8578,stroke-width:1px,stroke-dasharray:5 4,color:#8A8578
+    style BOTH fill:none,stroke:#8A8578,stroke-width:1px,stroke-dasharray:5 4,color:#8A8578
+```
+
 **关键点**：
 - `loader` / `action` 的代码**不会被打包进浏览器**。你可以在里面用 API secret、连数据库、读文件。
 - 默认导出的组件**两端都跑**。里面不能用 `process.env.SECRET`，不能 `import` 只能在 Node 跑的包。
@@ -60,9 +93,50 @@ export default function Products() {
 
 ## 2. 请求的完整生命周期
 
-### 首次访问（SSR）
+首屏和后续导航走的是两条不同的路——这张图的重点是**第二段比第一段少了什么**：
+
+```mermaid
+%%{init:{'theme':'base','themeVariables':{
+  'actorBkg':'#332F45','actorTextColor':'#F2EFE6','actorBorder':'#7A6FA6',
+  'noteBkgColor':'#E8DFCE','noteTextColor':'#26211A','noteBorderColor':'#A3937A',
+  'signalColor':'#8A8578','signalTextColor':'#8A8578'
+}}}%%
+sequenceDiagram
+    autonumber
+    participant B as 浏览器
+    participant R as RR7 服务端
+    participant L as loader（父 + 子）
+    participant API as Shopify Admin API
+
+    Note over B,API: 首次访问 · SSR
+    B->>R: GET /app/products
+    R->>R: 匹配路由 app/routes/app.products.tsx
+    R->>L: 并行执行所有匹配路由的 loader<br/>父路由 app.tsx 的 loader 也跑
+    L->>API: admin.graphql(...)
+    API-->>L: 数据
+    L-->>R: 返回数据
+    R->>R: 用数据渲染出完整 HTML 字符串
+    R-->>B: 返回 HTML —— 用户立刻看到内容，SEO 友好
+    B->>B: 下载 JS，hydrate（React 接管已有 DOM）
+    Note over B: 页面变成可交互
+
+    Note over B,API: 此后的客户端导航 · 点 Link 标签
+    B->>B: React Router 拦截，浏览器不刷新
+    B->>R: fetch 新路由的 loader 数据（只要 JSON，不要 HTML）
+    R->>L: 跑对应的 loader
+    L->>API: admin.graphql(...)
+    API-->>L: 数据
+    L-->>B: JSON
+    B->>B: 渲染新组件
+```
+
+第二段没有「渲染 HTML 字符串」，也没有「下载 JS + hydrate」——**结果**：首屏像传统服务端渲染一样快，后续导航像 SPA 一样流畅。
+
+<details>
+<summary>纯文本版（无 Mermaid 渲染环境展开）</summary>
 
 ```
+首次访问（SSR）
 浏览器请求 GET /app/products
     ↓
 服务器匹配路由 app/routes/app.products.tsx
@@ -78,11 +152,8 @@ loader 返回数据
 浏览器下载 JS，hydrate（React 接管已有 DOM）
     ↓
 页面变成可交互
-```
 
-### 客户端导航（点 `<Link>`）
-
-```
+客户端导航（点 <Link>）
 点击 <Link to="/app/products/123">
     ↓
 浏览器不刷新，React Router 拦截
@@ -92,7 +163,7 @@ fetch 请求新路由的 loader 数据（只要 JSON，不要 HTML）
 拿到数据后渲染新组件
 ```
 
-**结果**：首屏像传统服务端渲染一样快，后续导航像 SPA 一样流畅。
+</details>
 
 ---
 
@@ -184,6 +255,43 @@ export const headers: HeadersFunction = (headersArgs) => {
 
 **访问 `/app/additional` 时的渲染结构**：
 
+```mermaid
+flowchart TB
+    U["访问 /app/additional"]
+    U --> P1["app.tsx 的 loader<br/>authenticate.admin() 鉴权守卫"]
+    U --> P2["app.additional.tsx 的 loader"]
+    P1 --> R{"两个 loader 并行跑完"}
+    P2 --> R
+    R --> OUT
+
+    subgraph OUT["app.tsx —— 外壳，切子页面时不重新渲染"]
+        direction TB
+        AP["AppProvider　提供 useAppBridge()"]
+        NAV["s-app-nav　导航栏"]
+        subgraph SLOT["Outlet"]
+            CHILD["app.additional.tsx 的组件<br/>渲染在这里"]
+        end
+    end
+
+    class U sand
+    class P1 warn
+    class P2 sand
+    class R sand
+    class AP,NAV platform
+    class CHILD app
+    classDef platform fill:#332F45,stroke:#7A6FA6,stroke-width:1.5px,color:#F2EFE6
+    classDef app fill:#0F5F4E,stroke:#3FA98D,stroke-width:1.5px,color:#F2EFE6
+    classDef warn fill:#A4341F,stroke:#E07A5F,stroke-width:1.5px,color:#F2EFE6
+    classDef sand fill:#E8DFCE,stroke:#A3937A,stroke-width:1.5px,color:#26211A
+    style OUT fill:none,stroke:#8A8578,stroke-width:1px,stroke-dasharray:5 4,color:#8A8578
+    style SLOT fill:none,stroke:#8A8578,stroke-width:1px,stroke-dasharray:5 4,color:#8A8578
+```
+
+父路由的 loader 一定会跑，所以 `/app/*` 下的所有页面**自动受鉴权保护**——这是上面第 1 点的图形化解释。
+
+<details>
+<summary>纯文本版（无 Mermaid 渲染环境展开）</summary>
+
 ```
 app.tsx 的 loader 跑  →  app.additional.tsx 的 loader 跑  （并行）
                 ↓
@@ -194,6 +302,8 @@ app.tsx 的 loader 跑  →  app.additional.tsx 的 loader 跑  （并行）
          </Outlet>
        </AppProvider>
 ```
+
+</details>
 
 ---
 

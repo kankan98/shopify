@@ -4,6 +4,34 @@
 > 覆盖方向：**App 应用开发 + Hydrogen 无头商店 + Theme 主题开发** 三线全景。
 > 技术栈事实核对日期：**2026-07-27**（数据来自 Shopify 官方仓库源码，非二手教程）。
 
+```mermaid
+flowchart TB
+    START["起点：会原生 JS / ES6，不会 React<br/>建议先用 2 周走一遍 Theme 摸清领域模型<br/>product / variant / cart / metafield，再全力打 App"]
+
+    START --> A
+    START --> H
+    START --> T
+
+    A["① App 应用开发<br/>给商家装的插件，App Store 卖订阅<br/>React Router 7 · Polaris Web Components<br/>React 权重 ★★★★★"]
+    H["② Hydrogen 无头商店<br/>给某个品牌做高性能官网<br/>React Router 7 · Storefront API<br/>React 权重 ★★★★★"]
+    T["③ Theme 主题开发<br/>改店铺外观，接单门槛最低<br/>Liquid · Dawn 主题<br/>React 权重 ☆☆☆☆☆"]
+
+    A --> WIN["商业价值最高，主要时间投这条线<br/>全职加速约 8 周，业余约 17 周"]
+
+    class START sand
+    class A app
+    class H hydro
+    class T theme
+    class WIN platform
+    classDef platform fill:#332F45,stroke:#7A6FA6,stroke-width:1.5px,color:#F2EFE6
+    classDef app fill:#0F5F4E,stroke:#3FA98D,stroke-width:1.5px,color:#F2EFE6
+    classDef hydro fill:#1B4D8F,stroke:#5C93D6,stroke-width:1.5px,color:#F2EFE6
+    classDef theme fill:#8C4B14,stroke:#D08A46,stroke-width:1.5px,color:#F2EFE6
+    classDef sand fill:#E8DFCE,stroke:#A3937A,stroke-width:1.5px,color:#26211A
+```
+
+> 全套文档里，**松绿 = App 线、水蓝 = Hydrogen 线、赭石 = Theme 线**，颜色一致，不再重复标注图例。
+
 ---
 
 ## 0. 先看这三条结论

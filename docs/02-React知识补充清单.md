@@ -519,11 +519,38 @@ useEffect(() => {
 
 ## D2. 数据获取不在 React 里 ⭐⭐⭐
 
-**通用 React 教程的世界观**：组件挂载 → useEffect → fetch → setState → 渲染。
+```mermaid
+flowchart LR
+    subgraph OLD["❌ 通用 React 教程的世界观"]
+        direction TB
+        O1["组件挂载"] --> O2["useEffect"] --> O3["fetch"] --> O4["setState"] --> O5["渲染<br/>先白屏，再闪出数据"]
+    end
 
-**Shopify 全栈的世界观**：
+    subgraph NEW["✅ Shopify 全栈的世界观"]
+        direction TB
+        N1["浏览器请求 /app"] --> N2["服务端跑 loader()<br/>authenticate + 调 Admin GraphQL"]
+        N2 --> N3["服务端渲染 HTML<br/>数据已经在 HTML 里"]
+        N3 --> N4["浏览器 hydrate"]
+        N4 --> N5["组件里 useLoaderData()<br/>直接拿到数据"]
+    end
+
+    class O1,O2,O3,O4,O5 warn
+    class N1,N4 sand
+    class N2,N3,N5 app
+    classDef app fill:#0F5F4E,stroke:#3FA98D,stroke-width:1.5px,color:#F2EFE6
+    classDef warn fill:#A4341F,stroke:#E07A5F,stroke-width:1.5px,color:#F2EFE6
+    classDef sand fill:#E8DFCE,stroke:#A3937A,stroke-width:1.5px,color:#26211A
+    style OLD fill:none,stroke:#8A8578,stroke-width:1px,stroke-dasharray:5 4,color:#8A8578
+    style NEW fill:none,stroke:#8A8578,stroke-width:1px,stroke-dasharray:5 4,color:#8A8578
+```
+
+<details>
+<summary>纯文本版（无 Mermaid 渲染环境展开）</summary>
 
 ```
+通用 React 教程：组件挂载 → useEffect → fetch → setState → 渲染
+
+Shopify 全栈：
 浏览器请求 /app
     ↓
 服务端跑 loader()  ← 在这里 authenticate + 调 Admin GraphQL
@@ -534,6 +561,8 @@ useEffect(() => {
     ↓
 组件里 useLoaderData() 直接拿到数据
 ```
+
+</details>
 
 真实模板代码：
 
@@ -570,6 +599,24 @@ export default function Index() {
 - 应该保留 → 放 **URL**
 - 不应该 → 放 `useState`
 
+```mermaid
+flowchart TD
+    S["手上有一个新状态<br/>该放哪一层？"] --> Q1{"它是服务器上的数据吗？"}
+    Q1 -->|是| L1["loader 返回值<br/>商品列表、订单详情"]
+    Q1 -->|不是| Q2{"用户刷新页面、把链接分享给同事<br/>这个状态应该保留吗？"}
+    Q2 -->|应该保留| L2["URL search params<br/>useSearchParams<br/>分页游标 · 筛选 · 排序 · 搜索词"]
+    Q2 -->|不应该| Q3{"它描述的是<br/>一次提交正在进行中吗？"}
+    Q3 -->|是| L3["useNavigation()<br/>fetcher.state<br/>按钮 loading、禁用表单"]
+    Q3 -->|不是| L4["useState<br/>弹窗开关 · 折叠面板 · tooltip"]
+
+    class S,Q1,Q2,Q3 sand
+    class L1,L2,L3 app
+    class L4 platform
+    classDef app fill:#0F5F4E,stroke:#3FA98D,stroke-width:1.5px,color:#F2EFE6
+    classDef platform fill:#332F45,stroke:#7A6FA6,stroke-width:1.5px,color:#F2EFE6
+    classDef sand fill:#E8DFCE,stroke:#A3937A,stroke-width:1.5px,color:#26211A
+```
+
 **反面例子**：把分页页码放 useState → 用户翻到第 5 页、刷新，回到第 1 页；分享链接给同事，同事看到第 1 页。**这是 bug，不是设计。**
 
 真实模板里 loading 状态的正确取法：
@@ -585,6 +632,42 @@ const isLoading = ["loading", "submitting"].includes(fetcher.state);
 ## D4. 你的 React 组件运行在 iframe 里 ⭐⭐
 
 嵌入式 App 跑在 Shopify 后台的 iframe 中，这带来一串你在普通 React 项目里遇不到的约束：
+
+```mermaid
+flowchart TB
+    subgraph BROWSER["商家的浏览器"]
+        direction TB
+        ADMIN["Shopify 后台外层页面<br/>admin.shopify.com<br/>你碰不到它，也读不到它"]
+        subgraph IFRAME["iframe · 你的 App 前端"]
+            RC["你的 React 组件<br/>s-page / s-button / useLoaderData"]
+        end
+        BRIDGE["App Bridge<br/>useAppBridge()<br/>你和宿主通信的唯一桥梁"]
+    end
+
+    SRV["你的服务端<br/>loader / action"]
+    API["Shopify Admin API"]
+    NOCK["❌ 传统 session cookie<br/>iframe＝第三方上下文<br/>现代浏览器直接拦截"]
+
+    ADMIN -.->|"CSP frame-ancestors<br/>返回错了就白屏"| IFRAME
+    RC <-->|"toast · s-modal · 导航同步"| BRIDGE
+    BRIDGE <--> ADMIN
+    BRIDGE -->|"自动附加 session token<br/>JWT，1 分钟过期"| SRV
+    SRV -->|"Token Exchange 换 access_token"| API
+    NOCK -.-> BRIDGE
+
+    class ADMIN platform
+    class RC app
+    class BRIDGE hydro
+    class SRV,API sand
+    class NOCK warn
+    classDef app fill:#0F5F4E,stroke:#3FA98D,stroke-width:1.5px,color:#F2EFE6
+    classDef hydro fill:#1B4D8F,stroke:#5C93D6,stroke-width:1.5px,color:#F2EFE6
+    classDef platform fill:#332F45,stroke:#7A6FA6,stroke-width:1.5px,color:#F2EFE6
+    classDef warn fill:#A4341F,stroke:#E07A5F,stroke-width:1.5px,color:#F2EFE6
+    classDef sand fill:#E8DFCE,stroke:#A3937A,stroke-width:1.5px,color:#26211A
+    style BROWSER fill:none,stroke:#8A8578,stroke-width:1px,stroke-dasharray:5 4,color:#8A8578
+    style IFRAME fill:none,stroke:#8A8578,stroke-width:1px,stroke-dasharray:5 4,color:#8A8578
+```
 
 | 约束 | 后果 | 应对 |
 |---|---|---|

@@ -1078,6 +1078,29 @@ useEffect(() => {
 
 ## 7.7 决策流程图
 
+```mermaid
+flowchart TD
+    Q0["我想写一个 useEffect"] --> Q1{"这个值能从现有的<br/>state / props 算出来吗？"}
+    Q1 -->|能| N1["❌ 别用 effect<br/>直接算"]
+    Q1 -->|不能| Q2{"是响应用户的<br/>某个操作吗？"}
+    Q2 -->|是| N2["❌ 别用 effect<br/>写在事件处理函数里"]
+    Q2 -->|不是| Q3{"是要获取<br/>服务器数据吗？"}
+    Q3 -->|是| N3["❌ 别用 effect<br/>用 loader"]
+    Q3 -->|不是| Q4{"是在和 React 之外的<br/>系统交互吗？"}
+    Q4 -->|不是| N4["❌ 再想想<br/>大概率不需要"]
+    Q4 -->|是| Y["✅ 用 useEffect<br/>记得写清理函数"]
+
+    class Q0,Q1,Q2,Q3,Q4 sand
+    class N1,N2,N3,N4 warn
+    class Y app
+    classDef app fill:#0F5F4E,stroke:#3FA98D,stroke-width:1.5px,color:#F2EFE6
+    classDef warn fill:#A4341F,stroke:#E07A5F,stroke-width:1.5px,color:#F2EFE6
+    classDef sand fill:#E8DFCE,stroke:#A3937A,stroke-width:1.5px,color:#26211A
+```
+
+<details>
+<summary>纯文本版（无 Mermaid 渲染环境展开）</summary>
+
 ```
 我想写一个 useEffect
     ↓
@@ -1097,6 +1120,8 @@ useEffect(() => {
                    ├─ 是 → ✅ 用 useEffect，记得写清理
                    └─ 不是 → 再想想，大概率不需要
 ```
+
+</details>
 
 ---
 
